@@ -75,43 +75,44 @@ async function createOrder(orderData) {
 async function getAllOrders() {
   try {
     const query = `
-      SELECT 
-        ANY_VALUE(o.order_id) AS order_id,
-        ANY_VALUE(o.order_hash) AS order_hash,
-        ANY_VALUE(o.order_date) AS order_date,
-        ANY_VALUE(o.active_order) AS active_order,
-        ANY_VALUE(v.vehicle_year) AS vehicle_year,
-        ANY_VALUE(v.vehicle_make) AS vehicle_make,
-        ANY_VALUE(v.vehicle_model) AS vehicle_model,
-        ANY_VALUE(v.vehicle_color) AS vehicle_color,
-        ANY_VALUE(v.vehicle_mileage) AS vehicle_mileage,
-        ANY_VALUE(v.vehicle_serial) AS vehicle_serial,
-        ANY_VALUE(v.vehicle_tag) AS vehicle_tag,
-        ANY_VALUE(ci.customer_first_name) AS customer_first_name,
-        ANY_VALUE(ci.customer_last_name) AS customer_last_name,
-        ANY_VALUE(CONCAT(ci.customer_first_name, ' ', ci.customer_last_name)) AS customer_name,
-        ANY_VALUE(c.customer_email) AS customer_email,
-        ANY_VALUE(c.customer_phone_number) AS customer_phone_number,
-        ANY_VALUE(CONCAT(ei.employee_first_name, ' ', ei.employee_last_name)) AS employee_name,
-        ANY_VALUE(oi.order_total_price) AS order_total_price,
-        ANY_VALUE(oi.estimated_completion_date) AS estimated_completion_date,
-        ANY_VALUE(oi.additional_request) AS additional_request,
-         ANY_VALUE(oi.additional_requests_completed) AS additional_requests_completed,
-        GROUP_CONCAT(
-          CONCAT(cs.service_id, ':', cs.service_name, ':', os.service_completed) 
-          SEPARATOR ', '
-        ) AS services
-      FROM orders o
-      JOIN customer_vehicle_info v ON o.vehicle_id = v.vehicle_id
-      JOIN customer_identifier c ON o.customer_id = c.customer_id
-      JOIN customer_info ci ON c.customer_id = ci.customer_id
-      JOIN employee emp ON o.employee_id = emp.employee_id
-      JOIN employee_info ei ON emp.employee_id = ei.employee_id
-      LEFT JOIN order_info oi ON o.order_id = oi.order_id
-      LEFT JOIN order_services os ON o.order_id = os.order_id
-      LEFT JOIN common_services cs ON os.service_id = cs.service_id
-      GROUP BY o.order_id
-      ORDER BY o.order_date DESC`;
+     SELECT 
+    o.order_id,
+    o.order_hash,
+    MAX(o.order_date) AS order_date,  -- Use MAX instead of ANY_VALUE
+    MAX(o.active_order) AS active_order,
+    MAX(v.vehicle_year) AS vehicle_year,
+    MAX(v.vehicle_make) AS vehicle_make,
+    MAX(v.vehicle_model) AS vehicle_model,
+    MAX(v.vehicle_color) AS vehicle_color,
+    MAX(v.vehicle_mileage) AS vehicle_mileage,
+    MAX(v.vehicle_serial) AS vehicle_serial,
+    MAX(v.vehicle_tag) AS vehicle_tag,
+    MAX(ci.customer_first_name) AS customer_first_name,
+    MAX(ci.customer_last_name) AS customer_last_name,
+    MAX(CONCAT(ci.customer_first_name, ' ', ci.customer_last_name)) AS customer_name,
+    MAX(c.customer_email) AS customer_email,
+    MAX(c.customer_phone_number) AS customer_phone_number,
+    MAX(CONCAT(ei.employee_first_name, ' ', ei.employee_last_name)) AS employee_name,
+    MAX(oi.order_total_price) AS order_total_price,
+    MAX(oi.estimated_completion_date) AS estimated_completion_date,
+    MAX(oi.additional_request) AS additional_request,
+    MAX(oi.additional_requests_completed) AS additional_requests_completed,
+    GROUP_CONCAT(
+        CONCAT(cs.service_id, ':', cs.service_name, ':', os.service_completed) 
+        SEPARATOR ', '
+    ) AS services
+FROM orders o
+JOIN customer_vehicle_info v ON o.vehicle_id = v.vehicle_id
+JOIN customer_identifier c ON o.customer_id = c.customer_id
+JOIN customer_info ci ON c.customer_id = ci.customer_id
+JOIN employee emp ON o.employee_id = emp.employee_id
+JOIN employee_info ei ON emp.employee_id = ei.employee_id
+LEFT JOIN order_info oi ON o.order_id = oi.order_id
+LEFT JOIN order_services os ON o.order_id = os.order_id
+LEFT JOIN common_services cs ON os.service_id = cs.service_id
+GROUP BY o.order_id
+ORDER BY order_date DESC;
+`;
 
     const orders = await conn.query(query);
     return orders.map((order) => ({
@@ -137,38 +138,39 @@ async function getCustomerOrders(customerId) {
   try {
     const query = `
       SELECT
-        ANY_VALUE(o.order_id) AS order_id,
-        ANY_VALUE(o.order_hash) AS order_hash,
-        ANY_VALUE(o.order_date) AS order_date,
-        ANY_VALUE(o.active_order) AS active_order,
-        ANY_VALUE(v.vehicle_year) AS vehicle_year,
-        ANY_VALUE(v.vehicle_make) AS vehicle_make,
-        ANY_VALUE(v.vehicle_model) AS vehicle_model,
-         ANY_VALUE(v.vehicle_color) AS vehicle_color,
-        ANY_VALUE(v.vehicle_mileage) AS vehicle_mileage,
-        ANY_VALUE(v.vehicle_serial) AS vehicle_serial,
-        ANY_VALUE(v.vehicle_tag) AS vehicle_tag,
-        ANY_VALUE(CONCAT(ci.customer_first_name, ' ', ci.customer_last_name)) AS customer_name,
-        ANY_VALUE(c.customer_email) AS customer_email,
-        ANY_VALUE(c.customer_phone_number) AS customer_phone_number,
-        ANY_VALUE(CONCAT(ei.employee_first_name, ' ', ei.employee_last_name)) AS employee_name,
-        ANY_VALUE(oi.order_total_price) AS order_total_price,
-        ANY_VALUE(oi.additional_request) AS additional_request,
-        ANY_VALUE(oi.estimated_completion_date ) AS estimated_completion_date ,
-        ANY_VALUE(oi.additional_requests_completed) AS additional_requests_completed,
-        GROUP_CONCAT(DISTINCT CONCAT(cs.service_id, ':', cs.service_name) SEPARATOR ', ') AS services
-      FROM orders o
-      JOIN customer_vehicle_info v ON o.vehicle_id = v.vehicle_id
-      JOIN customer_identifier c ON o.customer_id = c.customer_id
-      JOIN customer_info ci ON c.customer_id = ci.customer_id
-      JOIN employee emp ON o.employee_id = emp.employee_id
-      JOIN employee_info ei ON emp.employee_id = ei.employee_id
-      LEFT JOIN order_info oi ON o.order_id = oi.order_id
-      LEFT JOIN order_services os ON o.order_id = os.order_id
-      LEFT JOIN common_services cs ON os.service_id = cs.service_id
-      WHERE o.customer_id = ?
-      GROUP BY o.order_id
-      ORDER BY o.order_date DESC`;
+    MAX(o.order_id) AS order_id,
+    MAX(o.order_hash) AS order_hash, 
+    MAX(o.order_date) AS order_date,
+    MAX(o.active_order) AS active_order,
+    MAX(v.vehicle_year) AS vehicle_year,
+    MAX(v.vehicle_make) AS vehicle_make,
+    MAX(v.vehicle_model) AS vehicle_model,
+    MAX(v.vehicle_color) AS vehicle_color,
+    MAX(v.vehicle_mileage) AS vehicle_mileage,
+    MAX(v.vehicle_serial) AS vehicle_serial,
+    MAX(v.vehicle_tag) AS vehicle_tag,
+    MAX(CONCAT(ci.customer_first_name, ' ', ci.customer_last_name)) AS customer_name,
+    MAX(c.customer_email) AS customer_email,
+    MAX(c.customer_phone_number) AS customer_phone_number,
+    MAX(CONCAT(ei.employee_first_name, ' ', ei.employee_last_name)) AS employee_name,
+    MAX(oi.order_total_price) AS order_total_price,
+    MAX(oi.additional_request) AS additional_request,
+    MAX(oi.estimated_completion_date) AS estimated_completion_date,
+    MAX(oi.additional_requests_completed) AS additional_requests_completed,
+    GROUP_CONCAT(DISTINCT CONCAT(cs.service_id, ':', cs.service_name) SEPARATOR ', ') AS services
+FROM orders o
+JOIN customer_vehicle_info v ON o.vehicle_id = v.vehicle_id
+JOIN customer_identifier c ON o.customer_id = c.customer_id
+JOIN customer_info ci ON c.customer_id = ci.customer_id
+JOIN employee emp ON o.employee_id = emp.employee_id
+JOIN employee_info ei ON emp.employee_id = ei.employee_id
+LEFT JOIN order_info oi ON o.order_id = oi.order_id
+LEFT JOIN order_services os ON o.order_id = os.order_id
+LEFT JOIN common_services cs ON os.service_id = cs.service_id
+WHERE o.customer_id = ?
+GROUP BY o.order_id
+ORDER BY o.order_date DESC;
+`;
 
     const orders = await conn.query(query, [customerId]);
     return orders.map((order) => ({
