@@ -15,13 +15,14 @@ async function createOrder(orderData) {
     const orderHash = generateOrderHash();
     const orderResult = await conn.query(
       `INSERT INTO orders 
-       (order_hash, employee_id, customer_id, vehicle_id, active_order)
-       VALUES (?, ?, ?, ?, 1)`,
+           (order_hash, employee_id, customer_id, vehicle_id, order_date, active_order)
+           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`, // Add order_date explicitly
       [
         orderHash,
         orderData.employee_id,
         orderData.customer_id,
         orderData.vehicle_id,
+        0, // Now correctly maps to active_order
       ]
     );
     const orderId = orderResult.insertId;
@@ -327,7 +328,7 @@ async function trackOrder(orderHash) {
 
     const orderData = {
       ...results[0],
-      services: JSON.parse(results[0].services || '[]'),
+      services: JSON.parse(results[0].services || "[]"),
     };
 
     return orderData;
